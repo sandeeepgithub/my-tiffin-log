@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
-import { Minus, Plus, Save, Sun, Moon } from 'lucide-react';
-import { format } from 'date-fns';
+import { Minus, Plus, Save, Sun, Moon, Calendar } from 'lucide-react';
+import { format, isAfter, startOfDay } from 'date-fns';
 
 interface TiffinEntry {
   entry_date: string;
@@ -14,7 +16,8 @@ interface TiffinEntry {
 
 const TiffinLogger: React.FC = () => {
   const [loading, setLoading] = useState(false);
-  const [todayEntry, setTodayEntry] = useState<TiffinEntry>({
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [currentEntry, setCurrentEntry] = useState<TiffinEntry>({
     entry_date: format(new Date(), 'yyyy-MM-dd'),
     afternoon_count: 0,
     evening_count: 0
@@ -22,16 +25,15 @@ const TiffinLogger: React.FC = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    loadTodayEntry();
-  }, []);
+    loadEntryForDate();
+  }, [selectedDate]);
 
-  const loadTodayEntry = async () => {
+  const loadEntryForDate = async () => {
     try {
-      const today = format(new Date(), 'yyyy-MM-dd');
       const { data, error } = await supabase
         .from('tiffin_entries')
         .select('*')
-        .eq('entry_date', today)
+        .eq('entry_date', selectedDate)
         .single();
 
       if (error && error.code !== 'PGRST116') {
@@ -39,28 +41,45 @@ const TiffinLogger: React.FC = () => {
       }
 
       if (data) {
-        setTodayEntry(data);
+        setCurrentEntry(data);
       } else {
-        setTodayEntry({
-          entry_date: today,
+        setCurrentEntry({
+          entry_date: selectedDate,
           afternoon_count: 0,
           evening_count: 0
         });
       }
     } catch (error: any) {
-      console.error('Error loading today entry:', error);
+      console.error('Error loading entry for date:', error);
     }
   };
 
   const updateCount = (meal: 'afternoon' | 'evening', increment: boolean) => {
     const field = `${meal}_count` as keyof TiffinEntry;
-    const currentValue = todayEntry[field] as number;
+    const currentValue = currentEntry[field] as number;
     const newValue = Math.max(0, Math.min(10, currentValue + (increment ? 1 : -1)));
     
-    setTodayEntry(prev => ({
+    setCurrentEntry(prev => ({
       ...prev,
       [field]: newValue
     }));
+  };
+
+  const handleDateChange = (date: string) => {
+    // Prevent selecting future dates
+    const selectedDateObj = new Date(date);
+    const today = startOfDay(new Date());
+    
+    if (isAfter(selectedDateObj, today)) {
+      toast({
+        title: "Invalid Date",
+        description: "You can only log tiffins for today or past dates.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setSelectedDate(date);
   };
 
   const saveEntry = async () => {
@@ -69,17 +88,21 @@ const TiffinLogger: React.FC = () => {
       const { error } = await supabase
         .from('tiffin_entries')
         .upsert({
-          entry_date: todayEntry.entry_date,
-          afternoon_count: todayEntry.afternoon_count,
-          evening_count: todayEntry.evening_count,
+          entry_date: currentEntry.entry_date,
+          afternoon_count: currentEntry.afternoon_count,
+          evening_count: currentEntry.evening_count,
           user_id: (await supabase.auth.getUser()).data.user?.id
         });
 
       if (error) throw error;
 
+      const totalCount = currentEntry.afternoon_count + currentEntry.evening_count;
+      const isToday = selectedDate === format(new Date(), 'yyyy-MM-dd');
+      const dateDescription = isToday ? 'today' : format(new Date(selectedDate), 'MMM d, yyyy');
+
       toast({
         title: "Entry saved!",
-        description: `Logged ${todayEntry.afternoon_count + todayEntry.evening_count} tiffins for today.`,
+        description: `Logged ${totalCount} tiffins for ${dateDescription}.`,
       });
     } catch (error: any) {
       toast({
@@ -142,23 +165,45 @@ const TiffinLogger: React.FC = () => {
     </Card>
   );
 
-  const totalCount = todayEntry.afternoon_count + todayEntry.evening_count;
+  const totalCount = currentEntry.afternoon_count + currentEntry.evening_count;
+  const isToday = selectedDate === format(new Date(), 'yyyy-MM-dd');
 
   return (
     <div className="space-y-6">
       <Card className="border-border/50 shadow-[var(--shadow-soft)] bg-gradient-to-br from-card to-muted/30">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Today's Tiffins</CardTitle>
+          <CardTitle className="text-2xl">
+            {isToday ? "Today's Tiffins" : "Tiffin Log"}
+          </CardTitle>
           <CardDescription>
-            {format(new Date(), 'EEEE, MMMM d, yyyy')}
+            {format(new Date(selectedDate), 'EEEE, MMMM d, yyyy')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* Date Picker */}
+          <div className="space-y-2">
+            <Label htmlFor="date-picker" className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Select Date
+            </Label>
+            <Input
+              id="date-picker"
+              type="date"
+              value={selectedDate}
+              max={format(new Date(), 'yyyy-MM-dd')}
+              onChange={(e) => handleDateChange(e.target.value)}
+              className="w-full"
+            />
+            <p className="text-xs text-muted-foreground">
+              You can only log tiffins for today or past dates
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <CounterButton
               icon={<Sun className="h-5 w-5 text-amber-500" />}
               title="Afternoon"
-              count={todayEntry.afternoon_count}
+              count={currentEntry.afternoon_count}
               onIncrement={() => updateCount('afternoon', true)}
               onDecrement={() => updateCount('afternoon', false)}
             />
@@ -166,7 +211,7 @@ const TiffinLogger: React.FC = () => {
             <CounterButton
               icon={<Moon className="h-5 w-5 text-indigo-500" />}
               title="Evening"
-              count={todayEntry.evening_count}
+              count={currentEntry.evening_count}
               onIncrement={() => updateCount('evening', true)}
               onDecrement={() => updateCount('evening', false)}
             />
