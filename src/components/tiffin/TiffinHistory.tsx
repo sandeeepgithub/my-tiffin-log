@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
-import { Calendar, TrendingUp, UtensilsCrossed, Sun, Moon } from 'lucide-react';
+import { Calendar, TrendingUp, UtensilsCrossed, Sun, Moon, Edit, Minus, Plus } from 'lucide-react';
 import { format, parseISO, subDays, startOfMonth, endOfMonth } from 'date-fns';
 
 interface TiffinEntry {
@@ -19,6 +20,8 @@ interface TiffinEntry {
 const TiffinHistory: React.FC = () => {
   const [entries, setEntries] = useState<TiffinEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<TiffinEntry | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [dateRange, setDateRange] = useState({
     start: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
     end: format(endOfMonth(new Date()), 'yyyy-MM-dd')
@@ -64,6 +67,93 @@ const TiffinHistory: React.FC = () => {
     const end = format(new Date(), 'yyyy-MM-dd');
     const start = format(subDays(new Date(), days - 1), 'yyyy-MM-dd');
     setDateRange({ start, end });
+  };
+
+  const handleEditEntry = (entry: TiffinEntry) => {
+    setEditingEntry({ ...entry });
+    setEditDialogOpen(true);
+  };
+
+  const updateEditCount = (meal: 'afternoon' | 'evening', increment: boolean) => {
+    if (!editingEntry) return;
+    
+    const field = `${meal}_count` as keyof TiffinEntry;
+    const currentValue = editingEntry[field] as number;
+    const newValue = Math.max(0, Math.min(10, currentValue + (increment ? 1 : -1)));
+    
+    setEditingEntry(prev => prev ? ({
+      ...prev,
+      [field]: newValue
+    }) : null);
+  };
+
+  const saveEditedEntry = async () => {
+    if (!editingEntry) return;
+    
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('tiffin_entries')
+        .update({
+          afternoon_count: editingEntry.afternoon_count,
+          evening_count: editingEntry.evening_count,
+        })
+        .eq('id', editingEntry.id);
+
+      if (error) throw error;
+
+      // Refresh the entries list
+      await loadEntries();
+      
+      setEditDialogOpen(false);
+      setEditingEntry(null);
+      
+      toast({
+        title: "Entry Updated!",
+        description: `Updated tiffins for ${format(parseISO(editingEntry.entry_date), 'MMM d, yyyy')}.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteEntry = async () => {
+    if (!editingEntry) return;
+    
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('tiffin_entries')
+        .delete()
+        .eq('id', editingEntry.id);
+
+      if (error) throw error;
+
+      // Refresh the entries list
+      await loadEntries();
+      
+      setEditDialogOpen(false);
+      setEditingEntry(null);
+      
+      toast({
+        title: "Entry Deleted!",
+        description: `Deleted entry for ${format(parseISO(editingEntry.entry_date), 'MMM d, yyyy')}.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const totalTiffins = entries.reduce((sum, entry) => sum + entry.total_count, 0);
@@ -197,7 +287,7 @@ const TiffinHistory: React.FC = () => {
                 {entries.map((entry) => (
                   <Card key={entry.id} className="p-4 border-border/50 hover:shadow-[var(--shadow-card)] transition-[var(--transition-smooth)]">
                     <div className="flex items-center justify-between">
-                      <div>
+                      <div className="flex-1">
                         <p className="font-medium text-foreground">
                           {format(parseISO(entry.entry_date), 'EEEE, MMM d, yyyy')}
                         </p>
@@ -212,11 +302,21 @@ const TiffinHistory: React.FC = () => {
                           </span>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-lg font-bold text-primary">{entry.total_count}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {entry.total_count === 1 ? 'tiffin' : 'tiffins'}
-                        </p>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-primary">{entry.total_count}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {entry.total_count === 1 ? 'tiffin' : 'tiffins'}
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditEntry(entry)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Edit className="h-3 w-3" />
+                        </Button>
                       </div>
                     </div>
                   </Card>
@@ -226,6 +326,118 @@ const TiffinHistory: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Tiffin Entry</DialogTitle>
+            <DialogDescription>
+              {editingEntry && `Update your tiffin count for ${format(parseISO(editingEntry.entry_date), 'EEEE, MMM d, yyyy')}`}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {editingEntry && (
+            <div className="space-y-6">
+              {/* Afternoon Count */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Sun className="h-4 w-4 text-amber-500" />
+                  Afternoon Tiffins
+                </Label>
+                <div className="flex items-center justify-center gap-4">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => updateEditCount('afternoon', false)}
+                    disabled={editingEntry.afternoon_count === 0}
+                    className="h-10 w-10 rounded-full"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  
+                  <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-amber-500/10 to-amber-500/20 border-2 border-amber-500/20">
+                    <span className="text-xl font-bold text-amber-600">{editingEntry.afternoon_count}</span>
+                  </div>
+                  
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => updateEditCount('afternoon', true)}
+                    disabled={editingEntry.afternoon_count >= 10}
+                    className="h-10 w-10 rounded-full"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Evening Count */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Moon className="h-4 w-4 text-indigo-500" />
+                  Evening Tiffins
+                </Label>
+                <div className="flex items-center justify-center gap-4">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => updateEditCount('evening', false)}
+                    disabled={editingEntry.evening_count === 0}
+                    className="h-10 w-10 rounded-full"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  
+                  <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500/10 to-indigo-500/20 border-2 border-indigo-500/20">
+                    <span className="text-xl font-bold text-indigo-600">{editingEntry.evening_count}</span>
+                  </div>
+                  
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => updateEditCount('evening', true)}
+                    disabled={editingEntry.evening_count >= 10}
+                    className="h-10 w-10 rounded-full"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Total Display */}
+              <div className="text-center p-3 rounded-lg bg-gradient-to-r from-accent/50 to-accent/30 border border-accent/30">
+                <p className="text-lg font-semibold text-accent-foreground">
+                  Total: {editingEntry.afternoon_count + editingEntry.evening_count} {(editingEntry.afternoon_count + editingEntry.evening_count) === 1 ? 'tiffin' : 'tiffins'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="destructive"
+              onClick={deleteEntry}
+              disabled={loading}
+            >
+              Delete Entry
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setEditDialogOpen(false)}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={saveEditedEntry}
+              disabled={loading}
+            >
+              {loading ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

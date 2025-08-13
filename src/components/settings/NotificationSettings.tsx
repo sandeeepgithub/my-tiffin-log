@@ -195,17 +195,54 @@ const NotificationSettings: React.FC = () => {
     }
   };
 
-  const testNotification = () => {
-    if (Notification.permission === 'granted') {
-      new Notification('Tiffin Tracker', {
-        body: "Don't forget to log your tiffins!",
-        icon: '/icon-192.png',
-        badge: '/icon-192.png'
+  const testNotification = async () => {
+    console.log('Testing notification...', { 
+      permission: Notification.permission,
+      serviceWorkerSupported: 'serviceWorker' in navigator,
+      notificationSupported: 'Notification' in window
+    });
+
+    if (!('Notification' in window)) {
+      toast({
+        title: "Not Supported",
+        description: "Your browser doesn't support notifications.",
+        variant: "destructive",
       });
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      try {
+        // Test with a simple notification first
+        const notification = new Notification('🍱 Tiffin Tracker Test', {
+          body: "This is a test notification! If you see this, notifications are working.",
+          icon: '/icon-192.png',
+          badge: '/icon-192.png',
+          tag: 'test-notification',
+          requireInteraction: false
+        });
+
+        notification.onclick = () => {
+          console.log('Test notification clicked');
+          notification.close();
+        };
+
+        toast({
+          title: "Test Sent!",
+          description: "Check if you received the test notification.",
+        });
+      } catch (error) {
+        console.error('Error creating test notification:', error);
+        toast({
+          title: "Error",
+          description: "Failed to create test notification: " + error.message,
+          variant: "destructive",
+        });
+      }
     } else {
       toast({
         title: "Permission Required",
-        description: "Please enable notifications first.",
+        description: `Notification permission is "${Notification.permission}". Please enable notifications first.`,
         variant: "destructive",
       });
     }
