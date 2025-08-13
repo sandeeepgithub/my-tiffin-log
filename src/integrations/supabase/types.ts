@@ -14,7 +14,66 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      tiffin_entries: {
+        Row: {
+          afternoon_count: number
+          created_at: string
+          entry_date: string
+          evening_count: number
+          id: string
+          total_count: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          afternoon_count?: number
+          created_at?: string
+          entry_date: string
+          evening_count?: number
+          id?: string
+          total_count?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          afternoon_count?: number
+          created_at?: string
+          entry_date?: string
+          evening_count?: number
+          id?: string
+          total_count?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
