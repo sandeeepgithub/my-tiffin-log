@@ -1,10 +1,10 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, History } from 'lucide-react';
+import { PlusCircle, History, Settings } from 'lucide-react';
 
 interface TabNavigationProps {
-  activeTab: 'logger' | 'history';
-  onTabChange: (tab: 'logger' | 'history') => void;
+  activeTab: 'logger' | 'history' | 'settings';
+  onTabChange: (tab: 'logger' | 'history' | 'settings') => void;
 }
 
 const TabNavigation: React.FC<TabNavigationProps> = ({ activeTab, onTabChange }) => {
@@ -34,6 +34,18 @@ const TabNavigation: React.FC<TabNavigationProps> = ({ activeTab, onTabChange })
         >
           <History className="h-4 w-4" />
           View History
+        </Button>
+        <Button
+          variant={activeTab === 'settings' ? 'default' : 'ghost'}
+          onClick={() => onTabChange('settings')}
+          className={`flex items-center gap-2 transition-[var(--transition-smooth)] ${
+            activeTab === 'settings' 
+              ? 'bg-gradient-to-r from-primary to-primary-hover shadow-[var(--shadow-warm)]' 
+              : 'hover:bg-muted'
+          }`}
+        >
+          <Settings className="h-4 w-4" />
+          Settings
         </Button>
       </div>
     </div>

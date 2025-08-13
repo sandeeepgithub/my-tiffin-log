@@ -42,31 +42,51 @@ self.addEventListener('activate', (event) => {
 
 // Push notification event
 self.addEventListener('push', (event) => {
-  const options = {
-    body: event.data ? event.data.text() : 'Don\'t forget to log your tiffins!',
+  let notificationData = {
+    title: 'Tiffin Tracker',
+    body: 'Don\'t forget to log your tiffins!',
     icon: '/icon-192.png',
     badge: '/icon-192.png',
-    vibrate: [100, 50, 100],
     data: {
-      dateOfArrival: Date.now(),
-      primaryKey: 1
-    },
+      url: '/',
+      timestamp: Date.now()
+    }
+  };
+
+  // Parse notification data if available
+  if (event.data) {
+    try {
+      notificationData = { ...notificationData, ...event.data.json() };
+    } catch (e) {
+      // Fallback to text content if JSON parsing fails
+      notificationData.body = event.data.text();
+    }
+  }
+
+  const options = {
+    body: notificationData.body,
+    icon: notificationData.icon,
+    badge: notificationData.badge,
+    vibrate: [100, 50, 100],
+    data: notificationData.data,
     actions: [
       {
-        action: 'explore',
-        title: 'Open App',
+        action: 'open',
+        title: 'Log Tiffins',
         icon: '/icon-192.png'
       },
       {
         action: 'close',
-        title: 'Close',
+        title: 'Dismiss',
         icon: '/icon-192.png'
       }
-    ]
+    ],
+    requireInteraction: false,
+    silent: false
   };
 
   event.waitUntil(
-    self.registration.showNotification('Tiffin Tracker', options)
+    self.registration.showNotification(notificationData.title, options)
   );
 });
 
@@ -74,9 +94,25 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  if (event.action === 'explore') {
+  if (event.action === 'open' || event.action === 'explore' || !event.action) {
+    // Open the app when clicking the notification or the "Log Tiffins" action
+    const urlToOpen = event.notification.data?.url || '/';
+    
     event.waitUntil(
-      clients.openWindow('/')
+      clients.matchAll({ type: 'window', includeUncontrolled: true })
+        .then((clients) => {
+          // Check if the app is already open
+          for (const client of clients) {
+            if (client.url.includes(self.location.origin) && 'focus' in client) {
+              return client.focus();
+            }
+          }
+          // If not open, open a new window
+          if (clients.openWindow) {
+            return clients.openWindow(urlToOpen);
+          }
+        })
     );
   }
+  // If action is 'close' or 'dismiss', just close the notification (already done above)
 });

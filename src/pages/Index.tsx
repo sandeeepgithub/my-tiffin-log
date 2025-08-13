@@ -6,12 +6,13 @@ import AppHeader from '@/components/layout/AppHeader';
 import TabNavigation from '@/components/layout/TabNavigation';
 import TiffinLogger from '@/components/tiffin/TiffinLogger';
 import TiffinHistory from '@/components/tiffin/TiffinHistory';
+import Settings from './Settings';
 
 const Index = () => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'logger' | 'history'>('logger');
+  const [activeTab, setActiveTab] = useState<'logger' | 'history' | 'settings'>('logger');
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -64,11 +65,9 @@ const Index = () => {
       <main className="container mx-auto px-4 py-6 max-w-4xl">
         <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
         
-        {activeTab === 'logger' ? (
-          <TiffinLogger />
-        ) : (
-          <TiffinHistory />
-        )}
+        {activeTab === 'logger' && <TiffinLogger />}
+        {activeTab === 'history' && <TiffinHistory />}
+        {activeTab === 'settings' && <Settings />}
       </main>
     </div>
   );
