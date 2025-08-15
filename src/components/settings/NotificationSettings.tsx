@@ -175,9 +175,14 @@ const NotificationSettings: React.FC = () => {
         push_subscription: preferences.push_subscription
       };
 
+      // Don't include ID in upsert data - let it be auto-generated or use existing
+      // Use explicit upsert with conflict resolution on user_id
       const { error } = await supabase
         .from('notification_preferences')
-        .upsert(preferencesData);
+        .upsert(preferencesData, { 
+          onConflict: 'user_id',
+          ignoreDuplicates: false 
+        });
 
       if (error) throw error;
 
