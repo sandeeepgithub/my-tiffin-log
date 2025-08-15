@@ -106,9 +106,12 @@ const NotificationSettings: React.FC = () => {
         throw new Error('Push messaging is not supported');
       }
 
-      // Use VAPID public key from environment or placeholder
-      // In production, replace this with your actual VAPID public key
-      const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || 'BEl62iUYgUivxIkv69yViEuiBIa40HI80NqIUHI-lX-QA0Uo-D6LkYOQ0z0z8wdFJKr6mmjZ0k_5ZtIE-0m8Xvs';
+      // Use VAPID public key from environment 
+      const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+      
+      if (!vapidPublicKey) {
+        throw new Error('VAPID public key not configured. Please set VITE_VAPID_PUBLIC_KEY environment variable.');
+      }
       
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
@@ -196,12 +199,18 @@ const NotificationSettings: React.FC = () => {
   };
 
   const testNotification = async () => {
-    console.log('Testing notification...', { 
+    const debugInfo = {
       permission: Notification.permission,
       serviceWorkerSupported: 'serviceWorker' in navigator,
-      notificationSupported: 'Notification' in window
-    });
+      notificationSupported: 'Notification' in window,
+      pushManagerSupported: 'PushManager' in window,
+      hasVapidKey: !!import.meta.env.VITE_VAPID_PUBLIC_KEY,
+      hasPushSubscription: !!preferences.push_subscription
+    };
+    
+    console.log('Testing notification...', debugInfo);
 
+    // Check browser support
     if (!('Notification' in window)) {
       toast({
         title: "Not Supported",
@@ -211,38 +220,80 @@ const NotificationSettings: React.FC = () => {
       return;
     }
 
-    if (Notification.permission === 'granted') {
-      try {
-        // Test with a simple notification first
-        const notification = new Notification('🍱 Tiffin Tracker Test', {
-          body: "This is a test notification! If you see this, notifications are working.",
-          icon: '/icon-192.png',
-          badge: '/icon-192.png',
-          tag: 'test-notification',
-          requireInteraction: false
-        });
+    // Check service worker support
+    if (!('serviceWorker' in navigator)) {
+      toast({
+        title: "Service Worker Not Supported",
+        description: "Your browser doesn't support service workers required for push notifications.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-        notification.onclick = () => {
-          console.log('Test notification clicked');
-          notification.close();
-        };
-
-        toast({
-          title: "Test Sent!",
-          description: "Check if you received the test notification.",
-        });
-      } catch (error) {
-        console.error('Error creating test notification:', error);
-        toast({
-          title: "Error",
-          description: "Failed to create test notification: " + error.message,
-          variant: "destructive",
-        });
-      }
-    } else {
+    // Check permission
+    if (Notification.permission !== 'granted') {
       toast({
         title: "Permission Required",
         description: `Notification permission is "${Notification.permission}". Please enable notifications first.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Test 1: Simple browser notification
+      const notification = new Notification('🍱 Tiffin Tracker Test', {
+        body: "Test notification is working! This confirms browser notifications are enabled.",
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+        tag: 'test-notification',
+        requireInteraction: false,
+        silent: false
+      });
+
+      notification.onclick = () => {
+        console.log('Test notification clicked');
+        notification.close();
+        window.focus();
+      };
+
+      notification.onerror = (error) => {
+        console.error('Test notification error:', error);
+      };
+
+      // Test 2: Service Worker notification (simulating push)
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.ready;
+        
+        // Send a message to service worker to show a notification
+        registration.showNotification('🍱 Tiffin Tracker Service Worker Test', {
+          body: "This tests the service worker notification system used for push notifications.",
+          icon: '/icon-192.png',
+          badge: '/icon-192.png',
+          tag: 'test-sw-notification',
+          data: {
+            url: '/',
+            test: true
+          }
+        });
+      }
+
+      toast({
+        title: "Test Notifications Sent!",
+        description: "You should see two test notifications. Check the console for debug info.",
+      });
+
+    } catch (error: any) {
+      console.error('Error creating test notification:', error);
+      
+      let errorMessage = error.message;
+      if (error.message.includes('VAPID')) {
+        errorMessage = "VAPID configuration issue. Check environment variables.";
+      }
+      
+      toast({
+        title: "Notification Test Failed",
+        description: `Error: ${errorMessage}`,
         variant: "destructive",
       });
     }
