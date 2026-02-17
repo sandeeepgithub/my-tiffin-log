@@ -15,6 +15,7 @@ dist-ssr
 # Environment variables
 .env
 .env.local
+.env.vercel
 .env.development.local
 .env.test.local
 .env.production.local
@@ -31,3 +32,11 @@ dist-ssr
 *.sw?
 
 supabase/.temp
+
+# Setup and migration scripts (local use only)
+generate-vapid.js
+setup-vapid.js
+run-migrations.js
+run-migrations.py
+vapid-output.txt
+SUPABASE_MIGRATION.sql
